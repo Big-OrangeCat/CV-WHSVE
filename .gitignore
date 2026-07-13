@@ -1,0 +1,43 @@
+# Sensitive data and derived tables
+data/
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.json
+!DATA_SCHEMA.md
+
+# Model weights and checkpoints
+*.pth
+*.pt
+*.ckpt
+saved_models/
+lightning_logs/
+catboost_info/
+
+# Generated figures and logs
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+*.log
+*.out
+*.bak*
+results*/
+outputs/
+compare_results/
+repro_logs/
+confusion_matrices/
+
+# Python cache and local environments
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# IDE files
+.idea/
+.vscode/
