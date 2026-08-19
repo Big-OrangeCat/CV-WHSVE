@@ -1,0 +1,23 @@
+{
+  "creators": [
+    {
+      "name": "Du, Jinze",
+      "affiliation": "Yunnan University"
+    }
+  ],
+  "title": "CV-WHSVE: An Explainable Machine-Learning Framework for PLR-Based Drug-Use Screening",
+  "version": "1.0.0",
+  "description": "Source code for preprocessing, feature extraction, model selection, training, evaluation, and post hoc explanation in the CV-WHSVE framework for pupillary light reflex-based drug-use screening. Participant-level data, trained model weights, and generated result files are not included.",
+  "keywords": [
+    "pupillary light reflex",
+    "drug-use screening",
+    "machine learning",
+    "heterogeneous ensemble",
+    "genetic algorithm",
+    "SHAP"
+  ],
+  "license": "mit",
+  "upload_type": "software",
+  "access_right": "open",
+  "language": "eng"
+}
