@@ -1,11 +1,12 @@
 # Sensitive data and derived tables
-data/
+data/*
 *.csv
 *.tsv
 *.xlsx
 *.xls
 *.json
 !DATA_SCHEMA.md
+!data/synthetic_plr.csv
 
 # Model weights and checkpoints
 *.pth

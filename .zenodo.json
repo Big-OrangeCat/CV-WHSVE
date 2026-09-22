@@ -6,8 +6,8 @@
     }
   ],
   "title": "CV-WHSVE: An Explainable Machine-Learning Framework for PLR-Based Drug-Use Screening",
-  "version": "1.0.0",
-  "description": "Source code for preprocessing, feature extraction, model selection, training, evaluation, and post hoc explanation in the CV-WHSVE framework for pupillary light reflex-based drug-use screening. Participant-level data, trained model weights, and generated result files are not included.",
+  "version": "1.1.0",
+  "description": "Leakage-aware source code for preprocessing, engineered feature extraction, nested genetic-algorithm model selection, cross-validated ensemble weighting, probability calibration, repeated evaluation, and synthetic-data executability checks in the CV-WHSVE framework. Participant-level data, trained model weights, predictions, and generated scientific result files are not included.",
   "keywords": [
     "pupillary light reflex",
     "drug-use screening",

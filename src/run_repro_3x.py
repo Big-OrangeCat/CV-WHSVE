@@ -1,158 +1,128 @@
-﻿#!/usr/bin/env python
-# coding: utf-8
+"""Repeat the complete nested-validation analysis across random seeds.
+
+Despite the historical filename, the default is now ten runs, as requested
+for the revision. Each seed creates a new participant-level 80:20 split and a
+complete nested model-selection analysis. The across-seed summary uses the
+same fixed 0.5 probability threshold in every run so that results are directly
+comparable; the development-derived threshold remains available in each run's
+``test_metrics.csv`` for the separate threshold analysis.
+"""
+
+from __future__ import annotations
 
 import argparse
 import json
-import os
-import re
-import subprocess
-import sys
 from pathlib import Path
 
-import numpy as np
+import pandas as pd
+
+from src.cv_whsve.nested_validation import run_nested_evaluation
 
 
-SCRIPT_GROUP = [
-    "stacking-鐬冲瓟13.1.py",
-    "stacking-鐬冲瓟15.0锛堢儹鍔涘浘锛?py",
-    "stacking-鐬冲瓟15.1锛堟秷铻嶏級.py",
-    "stacking-鐬冲瓟15.2锛堝厓鍒嗙被瀵规瘮锛?py",
-    #"train_1d_cnn.py",
-    #"train_micro_bilstm.py",
-    #"train_tsm_1d.py",
-]
+DEFAULT_SEEDS = [42, 52, 62, 72, 82, 92, 102, 112, 122, 132]
 
 
-METRIC_PATTERNS = {
-    "accuracy": [r"Accuracy\s*[:=]\s*([0-9]*\.?[0-9]+)"],
-    "auc": [
-        r"ROC AUC\s*[:=]\s*([0-9]*\.?[0-9]+)",
-        r"\bAUC\s*[:=]\s*([0-9]*\.?[0-9]+)",
-        r"AUROC\s*[:=]\s*([0-9]*\.?[0-9]+)",
-    ],
-    "f1": [
-        r"F1-score\s*[:=]\s*([0-9]*\.?[0-9]+)",
-        r"\bF1\s*[:=]\s*([0-9]*\.?[0-9]+)",
-    ],
-    "precision": [r"Precision\s*[:=]\s*([0-9]*\.?[0-9]+)"],
-    "recall": [r"Recall\s*[:=]\s*([0-9]*\.?[0-9]+)"],
-    "specificity": [r"Specificity\s*[:=]\s*([0-9]*\.?[0-9]+)"],
-    "best_auc": [r"Best AUC\s*[:=]\s*([0-9]*\.?[0-9]+)"],
-}
+def _summary_table(rows: pd.DataFrame) -> pd.DataFrame:
+    metrics = [
+        "accuracy",
+        "precision",
+        "sensitivity",
+        "specificity",
+        "f1",
+        "auroc",
+        "brier",
+    ]
+    return pd.DataFrame(
+        [
+            {
+                "metric": metric,
+                "mean": rows[metric].mean(),
+                "sd": rows[metric].std(ddof=1) if len(rows) > 1 else 0.0,
+                "n_runs": len(rows),
+            }
+            for metric in metrics
+        ]
+    )
 
 
-def _extract_last_float(text: str, patterns: list[str]):
-    last_val = None
-    for pat in patterns:
-        matches = re.findall(pat, text, flags=re.IGNORECASE)
-        if matches:
-            try:
-                last_val = float(matches[-1])
-            except ValueError:
-                pass
-    return last_val
+def run_repeated(
+    data: str | None,
+    out_dir: str,
+    seeds: list[int],
+    *,
+    outer_splits: int = 5,
+    inner_splits: int = 5,
+    profile: str = "full",
+    ga_population: int = 100,
+    ga_generations: int = 100,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    rows: list[dict] = []
+    for seed in seeds:
+        result = run_nested_evaluation(
+            data,
+            out / f"seed_{seed}",
+            random_state=seed,
+            outer_splits=outer_splits,
+            inner_splits=inner_splits,
+            profile=profile,
+            ga_options={
+                "population_size": ga_population,
+                "max_generations": ga_generations,
+            },
+        )
+        rows.append(
+            {
+                "random_state": seed,
+                "selected_threshold": result["selected_threshold"],
+                "final_models": ";".join(result["final_models"]),
+                **result["default_metrics"],
+            }
+        )
+        print(f"Completed seed {seed}: AUROC={rows[-1]['auroc']:.4f}")
 
-
-def parse_metrics(stdout_text: str):
-    metrics = {}
-    for name, patterns in METRIC_PATTERNS.items():
-        val = _extract_last_float(stdout_text, patterns)
-        if val is not None:
-            metrics[name] = val
-    return metrics
-
-
-def summarize(metric_runs: list[dict]):
-    all_keys = sorted({k for row in metric_runs for k in row.keys()})
-    out = {}
-    for k in all_keys:
-        vals = [row[k] for row in metric_runs if k in row]
-        if not vals:
-            continue
-        arr = np.array(vals, dtype=float)
-        out[k] = {
-            "mean": float(np.mean(arr)),
-            "std": float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0,
-            "n": int(len(arr)),
-            "runs": [float(x) for x in arr.tolist()],
-        }
-    return out
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Run full 15.0 suite for 3x reproduction and report mean卤std.")
-    parser.add_argument("--runs", type=int, default=3, help="repeat count, default=3")
-    parser.add_argument("--python", default=sys.executable, help="python executable path")
-    parser.add_argument("--keep-logs", action="store_true", help="keep full per-run stdout logs")
-    args = parser.parse_args()
-
-    base_dir = Path(__file__).resolve().parent
-    logs_dir = base_dir / "repro_logs"
-    logs_dir.mkdir(exist_ok=True)
-
-    summary = {}
-    for script in SCRIPT_GROUP:
-        script_path = base_dir / script
-        if not script_path.exists():
-            print(f"[WARN] Missing script: {script}")
-            continue
-
-        print(f"\n===== {script} =====")
-        metric_runs = []
-        for i in range(1, args.runs + 1):
-            print(f"[RUN {i}/{args.runs}] {script}")
-            env = os.environ.copy()
-            env["PYTHONHASHSEED"] = str(1411 + i)
-            env["REPRO_SEED"] = str(1411 + i)
-            env["REPRO_RUN_INDEX"] = str(i)
-            env["REPRO_RUNS_TOTAL"] = str(args.runs)
-
-            proc = subprocess.run(
-                [args.python, str(script_path)],
-                cwd=str(base_dir),
-                text=True,
-                capture_output=True,
-                env=env,
-            )
-
-            log_file = logs_dir / f"{script_path.stem}.run{i}.log"
-            with open(log_file, "w", encoding="utf-8", errors="ignore") as f:
-                f.write(proc.stdout or "")
-                f.write("\n\n=== STDERR ===\n")
-                f.write(proc.stderr or "")
-
-            if proc.returncode != 0:
-                print(f"[ERROR] exit_code={proc.returncode}, see: {log_file}")
-                continue
-
-            metrics = parse_metrics(proc.stdout or "")
-            if not metrics:
-                print(f"[WARN] no metric parsed from stdout, see: {log_file}")
-            else:
-                print("  parsed:", ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
-            metric_runs.append(metrics)
-
-            if not args.keep_logs:
-                pass
-
-        script_summary = summarize(metric_runs)
-        summary[script] = script_summary
-        if script_summary:
-            print("  => mean卤std")
-            for k, v in script_summary.items():
-                print(f"     {k}: {v['mean']:.4f} 卤 {v['std']:.4f} (n={v['n']})")
-        else:
-            print("  => no summary (no parsed metrics)")
-
-    out_json = base_dir / "repro_3x_summary.json"
-    with open(out_json, "w", encoding="utf-8") as f:
-        json.dump(summary, f, ensure_ascii=False, indent=2)
-
-    print(f"\nSaved summary: {out_json}")
-    print(f"Saved logs dir: {logs_dir}")
-    print("Note: if original scripts keep fixed random_state, std may be near 0. This is expected.")
+    per_seed = pd.DataFrame(rows)
+    summary = _summary_table(per_seed)
+    per_seed.to_csv(out / "per_seed_metrics.csv", index=False)
+    summary.to_csv(out / "repeated_split_summary.csv", index=False)
+    (out / "repeated_split_summary.json").write_text(
+        json.dumps(
+            {
+                "seeds": seeds,
+                "outer_splits": outer_splits,
+                "inner_splits": inner_splits,
+                "profile": profile,
+                "summary": summary.to_dict(orient="records"),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return per_seed, summary
 
 
 if __name__ == "__main__":
-    main()
-
+    parser = argparse.ArgumentParser(
+        description="Repeated nested CV-WHSVE evaluation with mean and sample SD."
+    )
+    parser.add_argument("--data", default=None)
+    parser.add_argument("--out", default="outputs/repeated_nested")
+    parser.add_argument("--seeds", nargs="+", type=int, default=DEFAULT_SEEDS)
+    parser.add_argument("--outer-splits", type=int, default=5)
+    parser.add_argument("--inner-splits", type=int, default=5)
+    parser.add_argument("--profile", choices=["full", "smoke"], default="full")
+    parser.add_argument("--ga-population", type=int, default=100)
+    parser.add_argument("--ga-generations", type=int, default=100)
+    args = parser.parse_args()
+    _, table = run_repeated(
+        args.data,
+        args.out,
+        args.seeds,
+        outer_splits=args.outer_splits,
+        inner_splits=args.inner_splits,
+        profile=args.profile,
+        ga_population=args.ga_population,
+        ga_generations=args.ga_generations,
+    )
+    print(table.to_string(index=False))
