@@ -35,6 +35,8 @@ scripts/
   smoke_test.py                          # Fast end-to-end executable check
   drug_category_metrics.py               # Metrics from an author-supplied category map
   shap_padding_sensitivity.py            # Controlled median-padding sensitivity analysis
+  sequence_convergence.py                 # Development-only 1D learning curves
+  plot_sequence_convergence.py            # Aggregate curve plotting
 data/
   synthetic_plr.csv                     # Simulated example only; no participant data
 legacy_original_scripts/
@@ -94,6 +96,12 @@ The primary implementation follows these steps:
 - repeated complete analyses over ten random seeds with mean and sample SD;
 - 1D sequence baselines trained with 80 epochs, batch size 64, AdamW, learning rate `3e-4`, and weight decay `1e-4`.
 
+The retrospective 1D convergence diagnostic is distinct from the reported
+80-epoch held-out comparison. It divides only the development partition into
+training and validation sets, records aggregate epoch-wise metrics, and never
+uses held-out records to create or select a curve. The saved CSV contains no
+participant-level observations or predictions.
+
 The file `training_feature_filter.csv` records the feature filter fitted on the
 complete training partition for reporting. During validation, separate copies
 of the same preprocessing steps are fitted inside each fold.
@@ -141,6 +149,19 @@ python -m src.run_repro_3x --data /private_data/preprocessed_data.csv --out outp
 
 Use the default `full` candidate profile for manuscript analyses. The `smoke`
 profile exists only to keep the synthetic software test short.
+
+Development-only convergence diagnostic on an authorised local CSV:
+
+```bash
+python -m scripts.sequence_convergence --data /private_data/preprocessed_data.csv \
+  --output outputs/sequence_learning_curves.csv --epochs 240
+python -m scripts.plot_sequence_convergence \
+  --metrics outputs/sequence_learning_curves.csv \
+  --output outputs/supplementary_sequence_convergence.pdf
+```
+
+Running these commands on the bundled synthetic CSV verifies only software
+execution; synthetic curves are not evidence of real-data learning behaviour.
 
 ## Reviewer-requested auxiliary analyses
 

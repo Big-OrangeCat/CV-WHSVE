@@ -64,7 +64,8 @@ def train(data: str | None, epochs: int = EPOCHS):
     x_train, x_test, y_train, y_test = participant_split(x, y, random_state=42)
     x_train = x_train[:, None, :].astype("float32")
     x_test = x_test[:, None, :].astype("float32")
-    mean, std = x_train.mean(), x_train.std() + 1e-8
+    mean = x_train.mean(axis=(0, 1), keepdims=True)
+    std = x_train.std(axis=(0, 1), keepdims=True) + 1e-8
     x_train, x_test = (x_train - mean) / std, (x_test - mean) / std
     loader = DataLoader(TensorDataset(torch.from_numpy(x_train), torch.from_numpy(y_train)), batch_size=BATCH, shuffle=True)
     model = MobileNet1D()

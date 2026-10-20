@@ -16,7 +16,7 @@ import torch.nn as nn
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
 
-from src.utils.data import load_sequences_and_labels, stratified_train_test
+from src.utils.data import load_plr_csv, participant_split
 
 
 class TemporalShift1D(nn.Module):
@@ -83,8 +83,12 @@ class TSM1DNet(nn.Module):
 
 
 def _make_loaders(data_path: str | None, batch_size: int = 64):
-    sequences, labels = load_sequences_and_labels(data_path)
-    x_train, x_test, y_train, y_test = stratified_train_test(sequences, labels, test_size=0.2, random_state=42)
+    sequences, labels = load_plr_csv(data_path)
+    x_train, x_test, y_train, y_test = participant_split(sequences, labels, test_size=0.2, random_state=42)
+    mean = x_train.mean(axis=0, keepdims=True)
+    std = x_train.std(axis=0, keepdims=True) + 1e-8
+    x_train = (x_train - mean) / std
+    x_test = (x_test - mean) / std
     x_train = torch.tensor(x_train[:, None, :], dtype=torch.float32)
     x_test = torch.tensor(x_test[:, None, :], dtype=torch.float32)
     y_train = torch.tensor(y_train, dtype=torch.long)
