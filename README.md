@@ -50,6 +50,8 @@ human-participant data and are not included. The bundled
 `data/synthetic_plr.csv` contains simulated curves solely to verify that the
 code executes. It must not be used to reproduce, replace, or substantiate the
 manuscript's scientific results.
+Do not use the synthetic dataset for performance benchmarking, model ranking,
+clinical validation, or claims about expected performance on human PLR data.
 
 Scripts expect a CSV file specified by the environment variable:
 
