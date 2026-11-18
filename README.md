@@ -165,11 +165,12 @@ python -m scripts.plot_sequence_convergence \
 Running these commands on the bundled synthetic CSV verifies only software
 execution; synthetic curves are not evidence of real-data learning behaviour.
 
-## Reviewer-requested auxiliary analyses
+## Additional analyses
 
-Drug-category metrics require an author-supplied CSV with `row_id` and
-`drug_category`. Categories are never inferred from binary labels or aggregate
-counts. Each category is evaluated against the held-out control participants:
+The drug-category script calculates exploratory metrics from held-out predictions
+and a private category file containing `row_id` and `drug_category`. For each
+category, positive-screen records are compared with the held-out controls. The
+participant-level category file is not distributed with this repository:
 
 ```bash
 python -m scripts.drug_category_metrics \
@@ -178,10 +179,10 @@ python -m scripts.drug_category_metrics \
   --out outputs/main_nested/drug_category_metrics.csv
 ```
 
-If original missing-position masks are unavailable, the following controlled
-perturbation compares median padding with linear interpolation. Its results
-must be described as a simulated sensitivity analysis, not as reconstruction
-of the original missingness pattern:
+The SHAP sensitivity script introduces controlled missing blocks into PLR
+sequences and compares median padding with linear interpolation. This simulated
+analysis assesses the sensitivity of feature attributions to the two procedures;
+it does not reconstruct missingness in the original recordings:
 
 ```bash
 python -m scripts.shap_padding_sensitivity \
@@ -190,19 +191,11 @@ python -m scripts.shap_padding_sensitivity \
   --out outputs/shap_padding_sensitivity
 ```
 
-## Generated outputs
+## Generated outputs and data handling
 
-Each analysis writes fold metrics, model-selection frequencies, nested weights,
-calibration points, held-out metrics and local predictions to its output
-directory. Output directories and CSV/JSON result files are ignored by Git so
-participant-level predictions cannot be committed accidentally.
-
-## Release checklist
-
-Before making this repository public, verify that:
-
-1. no participant-level data are committed;
-2. no trained model weights are committed;
-3. no generated result files, logs, or plots are committed;
-4. no private absolute path remains in the public scripts;
-5. the code DOI / release tag in the manuscript is updated after GitHub release.
+Scripts write analysis-specific results to the selected output directory. Some
+outputs may contain participant-level predictions. The `.gitignore` excludes
+common result files and output directories, but contributors should review staged
+files before committing. Participant-level data, derived predictions, trained
+model weights, and generated scientific results must not be published in this
+repository.
